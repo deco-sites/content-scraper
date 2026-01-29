@@ -5,6 +5,7 @@
 
 import { parseArgs } from "@std/cli/parse-args";
 import { seedBlogs, seedLinkedInSources, seedRedditSources, seedAll } from "./lib/seed.ts";
+import { seedAllSources as seedMassive } from "./lib/seed-sources.ts";
 import { scrapeAllBlogs, generateWeeklyReport } from "./lib/scraper.ts";
 import { scrapeAllLinkedInSources } from "./lib/linkedin-scraper.ts";
 import { scrapeAllRedditSources } from "./lib/reddit-scraper.ts";
@@ -31,7 +32,8 @@ COMMANDS:
   scrape-linkedin  Executa scraping apenas de LinkedIn
   scrape-reddit    Executa scraping apenas de Reddit
   
-  seed             Popula banco com TODAS as sources iniciais
+  seed             Popula banco com sources iniciais básicas
+  seed-massive     Popula banco com TODAS as sources (100+ fontes)
   seed-blogs       Popula banco apenas com blogs
   seed-linkedin    Popula banco apenas com perfis LinkedIn
   seed-reddit      Popula banco apenas com subreddits
@@ -82,6 +84,12 @@ async function main() {
     case "seed":
     case "seed-all":
       await seedAll();
+      break;
+
+    case "seed-massive":
+    case "seed-full":
+      console.log("\n🚀 Iniciando seed massivo de fontes (100+ fontes)...\n");
+      await seedMassive();
       break;
 
     case "seed-blogs":
