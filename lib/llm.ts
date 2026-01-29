@@ -5,6 +5,8 @@
 import type {
   LLMArticleAnalysisResponse,
   LLMArticleListResponse,
+  LLMLinkedInPostAnalysisResponse,
+  LLMRedditPostAnalysisResponse,
 } from "./types.ts";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -208,6 +210,191 @@ export async function analyzeArticle(
       summary: "",
       key_points: [],
       quality_score: 0,
+    };
+  }
+}
+
+// =============================================================================
+// LinkedIn Post Analysis
+// =============================================================================
+
+const LINKEDIN_POST_ANALYSIS_SYSTEM_PROMPT = (authority: number) => `You are an expert at analyzing LinkedIn posts about technology.
+Your task is to:
+1. Determine if the post is relevant and valuable - this includes posts about:
+   - MCP (Model Context Protocol), AI agents, LLM tools, AI integrations
+   - Software engineering best practices, architecture, system design
+   - Developer tools, productivity, career insights
+   - Tech industry news, trends, and analysis
+   - Startup/product insights from tech leaders
+
+2. Generate a concise summary (1-2 sentences)
+3. Extract 2-4 key points from the post
+4. Calculate a quality_score from 0.0 to 1.0 based on:
+   - How insightful and valuable the content is
+   - Technical depth or unique perspective
+   - Practical value and actionable insights
+   - Engagement potential (is it thought-provoking?)
+
+5. Provide a brief reason why the post is or isn't relevant
+
+The author has an authority rating of ${authority.toFixed(2)} (0.0 = low trust, 1.0 = high trust).
+Factor this into your quality assessment - higher authority authors should be weighted more favorably.
+
+IMPORTANT: Be selective. Only mark posts as relevant if they provide genuine value.
+Generic motivational posts, simple announcements without substance, or low-effort content should NOT be marked as relevant.
+
+Respond ONLY with valid JSON in this exact format:
+{
+  "is_relevant": boolean,
+  "summary": "string",
+  "key_points": ["point1", "point2"],
+  "quality_score": number,
+  "relevance_reason": "string"
+}
+
+quality_score should be between 0.0 and 1.0.
+If the post is too short or lacks substance, set is_relevant to false.`;
+
+/**
+ * Analisa um post do LinkedIn para determinar relevância e qualidade
+ */
+export async function analyzeLinkedInPost(
+  content: string,
+  authorName: string,
+  authority: number,
+  engagement: { likes: number; comments: number; shares: number }
+): Promise<LLMLinkedInPostAnalysisResponse> {
+  console.log(`[LLM] Analyzing LinkedIn post from: ${authorName}...`);
+
+  const systemPrompt = LINKEDIN_POST_ANALYSIS_SYSTEM_PROMPT(authority);
+  const userMessage = `Analyze this LinkedIn post:
+
+Author: ${authorName}
+Engagement: ${engagement.likes} likes, ${engagement.comments} comments, ${engagement.shares} shares
+
+Content:
+${content.slice(0, 5000)}`; // Limita a 5k chars (posts são menores que artigos)
+
+  const response = await callLLM(systemPrompt, userMessage);
+
+  try {
+    const parsed = parseJsonResponse<LLMLinkedInPostAnalysisResponse>(response);
+
+    // Valida e normaliza campos
+    return {
+      is_relevant: Boolean(parsed.is_relevant),
+      summary: parsed.summary || "",
+      key_points: Array.isArray(parsed.key_points) ? parsed.key_points : [],
+      quality_score: Math.max(0, Math.min(1, parsed.quality_score || 0)),
+      relevance_reason: parsed.relevance_reason || "",
+    };
+  } catch (error) {
+    console.error(`[LLM] Failed to parse LinkedIn post analysis response: ${error}`);
+    console.error(`[LLM] Raw response: ${response.slice(0, 500)}...`);
+
+    // Retorna valores padrão em caso de erro
+    return {
+      is_relevant: false,
+      summary: "",
+      key_points: [],
+      quality_score: 0,
+      relevance_reason: "Failed to analyze post",
+    };
+  }
+}
+
+// =============================================================================
+// Reddit Post Analysis
+// =============================================================================
+
+const REDDIT_POST_ANALYSIS_SYSTEM_PROMPT = (subreddit: string, upvotes: number, comments: number) => `You are an expert at analyzing Reddit posts about AI and technology.
+You are analyzing a post from r/${subreddit}.
+
+Your task is to:
+1. Determine if the post is relevant and valuable - this includes posts about:
+   - MCP (Model Context Protocol), AI agents, LLM tools, AI integrations
+   - Software engineering best practices, architecture, system design
+   - Developer tools, productivity, AI-assisted coding
+   - RAG systems, embeddings, vector databases
+   - Agent frameworks (LangChain, LangGraph, CrewAI, AutoGen, etc)
+   - AI/ML infrastructure, deployment, and production challenges
+   - Open source AI tools and libraries
+
+2. Generate a concise summary (2-3 sentences)
+3. Extract 2-4 key points from the post
+4. Calculate a quality_score from 0.0 to 1.0 based on:
+   - How insightful and valuable the content is
+   - Technical depth or unique perspective
+   - Practical value and actionable insights
+   - Community engagement (this post has ${upvotes} upvotes and ${comments} comments)
+   - Whether it provides real solutions or just asks questions
+
+5. Provide a brief reason why the post is or isn't relevant
+
+IMPORTANT: Be selective. Only mark posts as relevant if they provide genuine value.
+- Simple questions without substance should NOT be marked as relevant
+- Self-promotion without real content should NOT be marked as relevant
+- Posts with actual code, architecture, or detailed explanations ARE valuable
+- Posts discussing production challenges and solutions ARE valuable
+- Posts introducing useful open source tools ARE valuable
+
+Respond ONLY with valid JSON in this exact format:
+{
+  "is_relevant": boolean,
+  "summary": "string",
+  "key_points": ["point1", "point2"],
+  "quality_score": number,
+  "relevance_reason": "string"
+}
+
+quality_score should be between 0.0 and 1.0.
+If the post is too short or lacks substance, set is_relevant to false.`;
+
+/**
+ * Analisa um post do Reddit para determinar relevância e qualidade
+ */
+export async function analyzeRedditPost(
+  title: string,
+  content: string,
+  subreddit: string,
+  engagement: { upvotes: number; comments: number }
+): Promise<LLMRedditPostAnalysisResponse> {
+  console.log(`[LLM] Analyzing Reddit post: ${title.slice(0, 50)}...`);
+
+  const systemPrompt = REDDIT_POST_ANALYSIS_SYSTEM_PROMPT(subreddit, engagement.upvotes, engagement.comments);
+  const userMessage = `Analyze this Reddit post:
+
+Title: ${title}
+Subreddit: r/${subreddit}
+Engagement: ${engagement.upvotes} upvotes, ${engagement.comments} comments
+
+Content:
+${content.slice(0, 8000)}`; // Limita a 8k chars (posts do Reddit podem ser maiores)
+
+  const response = await callLLM(systemPrompt, userMessage);
+
+  try {
+    const parsed = parseJsonResponse<LLMRedditPostAnalysisResponse>(response);
+
+    // Valida e normaliza campos
+    return {
+      is_relevant: Boolean(parsed.is_relevant),
+      summary: parsed.summary || "",
+      key_points: Array.isArray(parsed.key_points) ? parsed.key_points : [],
+      quality_score: Math.max(0, Math.min(1, parsed.quality_score || 0)),
+      relevance_reason: parsed.relevance_reason || "",
+    };
+  } catch (error) {
+    console.error(`[LLM] Failed to parse Reddit post analysis response: ${error}`);
+    console.error(`[LLM] Raw response: ${response.slice(0, 500)}...`);
+
+    // Retorna valores padrão em caso de erro
+    return {
+      is_relevant: false,
+      summary: "",
+      key_points: [],
+      quality_score: 0,
+      relevance_reason: "Failed to analyze post",
     };
   }
 }

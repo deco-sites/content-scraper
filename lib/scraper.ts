@@ -4,8 +4,7 @@
 
 import type { AnalyzedArticle, Blog, ScrapedArticle } from "./types.ts";
 import {
-  articleExistsByUrl,
-  createArticle,
+  upsertArticle,
   listBlogs,
 } from "./db.ts";
 import { extractArticlesFromPage, analyzeArticle } from "./llm.ts";
@@ -101,18 +100,11 @@ export async function scrapeBlog(blog: Blog): Promise<number> {
   let savedCount = 0;
 
   for (const articleInfo of articleList) {
-    // Verifica se já existe
-    const exists = await articleExistsByUrl(articleInfo.url);
-    if (exists) {
-      console.log(`    → Skipping (already exists): ${articleInfo.title.slice(0, 40)}...`);
-      continue;
-    }
-
     try {
       const saved = await processArticle(blog, articleInfo);
       if (saved) {
         savedCount++;
-        console.log(`    ✓ Saved: ${articleInfo.title.slice(0, 40)}...`);
+        console.log(`    ✓ Saved/Updated: ${articleInfo.title.slice(0, 40)}...`);
       }
     } catch (error) {
       console.error(`    ✗ Error processing "${articleInfo.title}": ${error}`);
@@ -175,8 +167,8 @@ async function processArticle(
   // 7. Calcula post_score
   const postScore = calculatePostScore(analysis.quality_score, blog.authority);
 
-  // 8. Salva no banco
-  await createArticle({
+  // 8. Salva no banco (upsert para evitar duplicados)
+  await upsertArticle({
     blog_id: blog.id,
     title: articleInfo.title,
     url: articleInfo.url,

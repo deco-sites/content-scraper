@@ -10,6 +10,18 @@ import type {
   BlogInsert,
   BlogUpdate,
   DashboardStats,
+  LinkedInContent,
+  LinkedInContentInsert,
+  LinkedInContentType,
+  LinkedInSource,
+  LinkedInSourceInsert,
+  LinkedInSourceUpdate,
+  RedditContent,
+  RedditContentInsert,
+  RedditContentType,
+  RedditSource,
+  RedditSourceInsert,
+  RedditSourceUpdate,
 } from "./types.ts";
 import { generateId } from "./utils.ts";
 
@@ -388,8 +400,8 @@ export async function deleteBlog(id: string): Promise<boolean> {
 
   const db = getDb();
 
-  // Remove todos os artigos do blog primeiro
-  await db.query(`DELETE FROM articles WHERE blog_id = '${escapeString(id)}'`);
+  // Remove todos os conteúdos do blog primeiro
+  await db.query(`DELETE FROM contents WHERE blog_id = '${escapeString(id)}'`);
 
   // Remove o blog
   const result = await db.query(`DELETE FROM blog_sources WHERE id = '${escapeString(id)}'`);
@@ -398,7 +410,7 @@ export async function deleteBlog(id: string): Promise<boolean> {
 }
 
 // =============================================================================
-// Article Operations (Tabela: articles)
+// Article Operations (Tabela: contents)
 // =============================================================================
 
 /**
@@ -407,9 +419,9 @@ export async function deleteBlog(id: string): Promise<boolean> {
 export async function listArticles(limit = 50): Promise<Article[]> {
   const db = getDb();
   const result = await db.query<Article>(
-    `SELECT id, blog_id, title, url, published_at, publication_week, summary, key_points, post_score, scraped_at
-     FROM articles 
-     ORDER BY scraped_at DESC, post_score DESC
+    `SELECT id, blog_id, article_title as title, article_url as url, published_at, publication_week, summary, key_points, post_score, created_at as scraped_at
+     FROM contents 
+     ORDER BY created_at DESC, post_score DESC
      LIMIT ${limit}`
   );
 
@@ -434,8 +446,8 @@ export async function listArticles(limit = 50): Promise<Article[]> {
 export async function listArticlesByWeek(week: string): Promise<Article[]> {
   const db = getDb();
   const result = await db.query<Article>(
-    `SELECT id, blog_id, title, url, published_at, publication_week, summary, key_points, post_score, scraped_at
-     FROM articles 
+    `SELECT id, blog_id, article_title as title, article_url as url, published_at, publication_week, summary, key_points, post_score, created_at as scraped_at
+     FROM contents 
      WHERE publication_week = '${escapeString(week)}'
      ORDER BY post_score DESC`
   );
@@ -460,8 +472,8 @@ export async function listArticlesByWeek(week: string): Promise<Article[]> {
 export async function listArticlesByBlog(blogId: string): Promise<Article[]> {
   const db = getDb();
   const result = await db.query<Article>(
-    `SELECT id, blog_id, title, url, published_at, publication_week, summary, key_points, post_score, scraped_at
-     FROM articles 
+    `SELECT id, blog_id, article_title as title, article_url as url, published_at, publication_week, summary, key_points, post_score, created_at as scraped_at
+     FROM contents 
      WHERE blog_id = '${escapeString(blogId)}'
      ORDER BY published_at DESC`
   );
@@ -486,9 +498,9 @@ export async function listArticlesByBlog(blogId: string): Promise<Article[]> {
 export async function getArticle(id: string): Promise<Article | null> {
   const db = getDb();
   const result = await db.query<Article>(
-    `SELECT id, blog_id, title, url, published_at, publication_week, summary, key_points, post_score, scraped_at
-     FROM articles 
-     WHERE id = '${escapeString(id)}' 
+    `SELECT id, blog_id, article_title as title, article_url as url, published_at, publication_week, summary, key_points, post_score, created_at as scraped_at
+     FROM contents 
+     WHERE id = ${escapeString(id)} 
      LIMIT 1`
   );
 
@@ -512,7 +524,7 @@ export async function getArticle(id: string): Promise<Article | null> {
 export async function articleExistsByUrl(url: string): Promise<boolean> {
   const db = getDb();
   const result = await db.query<{ count: number }>(
-    `SELECT COUNT(*) as count FROM articles WHERE url = '${escapeString(url)}'`
+    `SELECT COUNT(*) as count FROM contents WHERE article_url = '${escapeString(url)}'`
   );
 
   if (!result.success || !result.data || result.data.length === 0) {
@@ -527,13 +539,11 @@ export async function articleExistsByUrl(url: string): Promise<boolean> {
  */
 export async function createArticle(input: ArticleInsert): Promise<Article> {
   const db = getDb();
-  const id = generateId();
   const now = new Date().toISOString();
 
   const sql = `
-    INSERT INTO articles (id, blog_id, title, url, published_at, publication_week, summary, key_points, post_score, scraped_at)
+    INSERT INTO contents (blog_id, article_title, article_url, published_at, publication_week, summary, key_points, post_score, created_at)
     VALUES (
-      ${toSqlValue(id)},
       ${toSqlValue(input.blog_id)},
       ${toSqlValue(input.title)},
       ${toSqlValue(input.url)},
@@ -544,7 +554,7 @@ export async function createArticle(input: ArticleInsert): Promise<Article> {
       ${toSqlValue(input.post_score)},
       ${toSqlValue(now)}
     )
-    RETURNING *
+    RETURNING id, blog_id, article_title as title, article_url as url, published_at, publication_week, summary, key_points, post_score, created_at as scraped_at
   `;
 
   const result = await db.query<Article>(sql);
@@ -568,13 +578,11 @@ export async function createArticle(input: ArticleInsert): Promise<Article> {
  */
 export async function upsertArticle(input: ArticleInsert): Promise<Article> {
   const db = getDb();
-  const id = generateId();
   const now = new Date().toISOString();
 
   const sql = `
-    INSERT INTO articles (id, blog_id, title, url, published_at, publication_week, summary, key_points, post_score, scraped_at)
+    INSERT INTO contents (blog_id, article_title, article_url, published_at, publication_week, summary, key_points, post_score, created_at)
     VALUES (
-      ${toSqlValue(id)},
       ${toSqlValue(input.blog_id)},
       ${toSqlValue(input.title)},
       ${toSqlValue(input.url)},
@@ -585,13 +593,13 @@ export async function upsertArticle(input: ArticleInsert): Promise<Article> {
       ${toSqlValue(input.post_score)},
       ${toSqlValue(now)}
     )
-    ON CONFLICT (url) DO UPDATE SET
-      title = EXCLUDED.title,
+    ON CONFLICT (article_url) DO UPDATE SET
+      article_title = EXCLUDED.article_title,
       summary = EXCLUDED.summary,
       key_points = EXCLUDED.key_points,
       post_score = EXCLUDED.post_score,
-      scraped_at = EXCLUDED.scraped_at
-    RETURNING *
+      updated_at = datetime('now')
+    RETURNING id, blog_id, article_title as title, article_url as url, published_at, publication_week, summary, key_points, post_score, created_at as scraped_at
   `;
 
   const result = await db.query<Article>(sql);
@@ -616,7 +624,7 @@ export async function upsertArticle(input: ArticleInsert): Promise<Article> {
 export async function countArticlesByBlog(blogId: string): Promise<number> {
   const db = getDb();
   const result = await db.query<{ count: number }>(
-    `SELECT COUNT(*) as count FROM articles WHERE blog_id = '${escapeString(blogId)}'`
+    `SELECT COUNT(*) as count FROM contents WHERE blog_id = '${escapeString(blogId)}'`
   );
 
   if (!result.success || !result.data || result.data.length === 0) {
@@ -631,7 +639,7 @@ export async function countArticlesByBlog(blogId: string): Promise<number> {
  */
 export async function countArticles(): Promise<number> {
   const db = getDb();
-  const result = await db.query<{ count: number }>(`SELECT COUNT(*) as count FROM articles`);
+  const result = await db.query<{ count: number }>(`SELECT COUNT(*) as count FROM contents`);
 
   if (!result.success || !result.data || result.data.length === 0) {
     return 0;
@@ -659,7 +667,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   }>(`
     SELECT 
       (SELECT COUNT(*) FROM blog_sources) as total_blogs,
-      (SELECT COUNT(*) FROM articles) as total_articles,
+      (SELECT COUNT(*) FROM contents) as total_articles,
       (SELECT COALESCE(AVG(authority), 0) FROM blog_sources) as avg_authority,
       (SELECT COUNT(DISTINCT type) FROM blog_sources) as types_count
   `);
@@ -689,11 +697,11 @@ export async function listArticlesWithBlog(limit = 50): Promise<ArticleWithBlog[
   const db = getDb();
   const result = await db.query<Article & { blog_name: string; blog_url: string; blog_feed_url: string | null; blog_authority: number; blog_type: string; blog_created_at: string }>(
     `SELECT 
-      a.id, a.blog_id, a.title, a.url, a.published_at, a.publication_week, a.summary, a.key_points, a.post_score, a.scraped_at,
+      a.id, a.blog_id, a.article_title as title, a.article_url as url, a.published_at, a.publication_week, a.summary, a.key_points, a.post_score, a.created_at as scraped_at,
       b.name as blog_name, b.url as blog_url, b.feed_url as blog_feed_url, b.authority as blog_authority, b.type as blog_type, b.created_at as blog_created_at
-     FROM articles a
+     FROM contents a
      JOIN blog_sources b ON a.blog_id = b.id
-     ORDER BY a.scraped_at DESC, a.post_score DESC
+     ORDER BY a.created_at DESC, a.post_score DESC
      LIMIT ${limit}`
   );
 
@@ -732,9 +740,9 @@ export async function listArticlesByWeekWithBlog(week: string): Promise<ArticleW
   const db = getDb();
   const result = await db.query<Article & { blog_name: string; blog_url: string; blog_feed_url: string | null; blog_authority: number; blog_type: string; blog_created_at: string }>(
     `SELECT 
-      a.id, a.blog_id, a.title, a.url, a.published_at, a.publication_week, a.summary, a.key_points, a.post_score, a.scraped_at,
+      a.id, a.blog_id, a.article_title as title, a.article_url as url, a.published_at, a.publication_week, a.summary, a.key_points, a.post_score, a.created_at as scraped_at,
       b.name as blog_name, b.url as blog_url, b.feed_url as blog_feed_url, b.authority as blog_authority, b.type as blog_type, b.created_at as blog_created_at
-     FROM articles a
+     FROM contents a
      JOIN blog_sources b ON a.blog_id = b.id
      WHERE a.publication_week = '${escapeString(week)}'
      ORDER BY a.post_score DESC`
@@ -780,4 +788,799 @@ export function getKv(): Promise<never> {
  */
 export function closeKv(): void {
   // No-op para compatibilidade
+}
+
+// =============================================================================
+// LinkedIn Source Operations (Tabela: linkedin_sources)
+// =============================================================================
+
+/**
+ * Lista todas as fontes LinkedIn ativas
+ */
+export async function listLinkedInSources(activeOnly = true): Promise<LinkedInSource[]> {
+  const db = getDb();
+  const whereClause = activeOnly ? "WHERE active = 1" : "";
+  const result = await db.query<LinkedInSource>(
+    `SELECT id, name, profile_url, authority, type, active, created_at 
+     FROM linkedin_sources 
+     ${whereClause}
+     ORDER BY authority DESC, name ASC`
+  );
+
+  if (!result.success || !result.data) {
+    console.error("❌ [listLinkedInSources] Erro:", result.error?.message);
+    return [];
+  }
+
+  return result.data.map((source) => ({
+    ...source,
+    active: Boolean(source.active),
+  }));
+}
+
+/**
+ * Obtém uma fonte LinkedIn por ID
+ */
+export async function getLinkedInSource(id: string): Promise<LinkedInSource | null> {
+  const db = getDb();
+  const result = await db.query<LinkedInSource>(
+    `SELECT id, name, profile_url, authority, type, active, created_at 
+     FROM linkedin_sources 
+     WHERE id = '${escapeString(id)}'`
+  );
+
+  if (!result.success || !result.data || result.data.length === 0) {
+    return null;
+  }
+
+  const source = result.data[0];
+  return {
+    ...source,
+    active: Boolean(source.active),
+  };
+}
+
+/**
+ * Cria uma nova fonte LinkedIn
+ */
+export async function createLinkedInSource(input: LinkedInSourceInsert): Promise<LinkedInSource> {
+  const db = getDb();
+  const id = generateId();
+  const now = new Date().toISOString();
+
+  const sql = `
+    INSERT INTO linkedin_sources (id, name, profile_url, authority, type, active, created_at)
+    VALUES (
+      ${toSqlValue(id)},
+      ${toSqlValue(input.name)},
+      ${toSqlValue(input.profile_url)},
+      ${toSqlValue(input.authority)},
+      ${toSqlValue(input.type)},
+      ${toSqlValue(input.active !== false ? 1 : 0)},
+      ${toSqlValue(now)}
+    )
+    RETURNING *
+  `;
+
+  const result = await db.query<LinkedInSource>(sql);
+
+  if (!result.success || !result.data || result.data.length === 0) {
+    throw new Error(`Erro ao criar fonte LinkedIn: ${result.error?.message}`);
+  }
+
+  return {
+    ...result.data[0],
+    active: Boolean(result.data[0].active),
+  };
+}
+
+/**
+ * Atualiza uma fonte LinkedIn existente
+ */
+export async function updateLinkedInSource(id: string, input: LinkedInSourceUpdate): Promise<LinkedInSource | null> {
+  const existing = await getLinkedInSource(id);
+  if (!existing) {
+    return null;
+  }
+
+  const db = getDb();
+  const updates: string[] = [];
+
+  if (input.name !== undefined) updates.push(`name = ${toSqlValue(input.name)}`);
+  if (input.profile_url !== undefined) updates.push(`profile_url = ${toSqlValue(input.profile_url)}`);
+  if (input.authority !== undefined) updates.push(`authority = ${toSqlValue(input.authority)}`);
+  if (input.type !== undefined) updates.push(`type = ${toSqlValue(input.type)}`);
+  if (input.active !== undefined) updates.push(`active = ${toSqlValue(input.active ? 1 : 0)}`);
+
+  if (updates.length === 0) {
+    return existing;
+  }
+
+  const sql = `
+    UPDATE linkedin_sources 
+    SET ${updates.join(", ")}
+    WHERE id = '${escapeString(id)}'
+    RETURNING *
+  `;
+
+  const result = await db.query<LinkedInSource>(sql);
+
+  if (!result.success || !result.data || result.data.length === 0) {
+    return null;
+  }
+
+  return {
+    ...result.data[0],
+    active: Boolean(result.data[0].active),
+  };
+}
+
+/**
+ * Remove uma fonte LinkedIn
+ */
+export async function deleteLinkedInSource(id: string): Promise<boolean> {
+  const existing = await getLinkedInSource(id);
+  if (!existing) {
+    return false;
+  }
+
+  const db = getDb();
+  const result = await db.query(`DELETE FROM linkedin_sources WHERE id = '${escapeString(id)}'`);
+  return result.success;
+}
+
+/**
+ * Conta fontes LinkedIn
+ */
+export async function countLinkedInSources(activeOnly = true): Promise<number> {
+  const db = getDb();
+  const whereClause = activeOnly ? "WHERE active = 1" : "";
+  const result = await db.query<{ count: number }>(
+    `SELECT COUNT(*) as count FROM linkedin_sources ${whereClause}`
+  );
+
+  if (!result.success || !result.data || result.data.length === 0) {
+    return 0;
+  }
+
+  return Number(result.data[0].count);
+}
+
+// =============================================================================
+// Reddit Source Operations (Tabela: reddit_sources)
+// =============================================================================
+
+/**
+ * Lista todas as fontes Reddit ativas
+ */
+export async function listRedditSources(activeOnly = true): Promise<RedditSource[]> {
+  const db = getDb();
+  const whereClause = activeOnly ? "WHERE active = 1" : "";
+  const result = await db.query<RedditSource>(
+    `SELECT id, name, subreddit, authority, type, active, created_at 
+     FROM reddit_sources 
+     ${whereClause}
+     ORDER BY authority DESC, name ASC`
+  );
+
+  if (!result.success || !result.data) {
+    console.error("❌ [listRedditSources] Erro:", result.error?.message);
+    return [];
+  }
+
+  return result.data.map((source) => ({
+    ...source,
+    active: Boolean(source.active),
+  }));
+}
+
+/**
+ * Obtém uma fonte Reddit por ID
+ */
+export async function getRedditSource(id: string): Promise<RedditSource | null> {
+  const db = getDb();
+  const result = await db.query<RedditSource>(
+    `SELECT id, name, subreddit, authority, type, active, created_at 
+     FROM reddit_sources 
+     WHERE id = '${escapeString(id)}'`
+  );
+
+  if (!result.success || !result.data || result.data.length === 0) {
+    return null;
+  }
+
+  const source = result.data[0];
+  return {
+    ...source,
+    active: Boolean(source.active),
+  };
+}
+
+/**
+ * Cria uma nova fonte Reddit
+ */
+export async function createRedditSource(input: RedditSourceInsert): Promise<RedditSource> {
+  const db = getDb();
+  const id = generateId();
+  const now = new Date().toISOString();
+
+  const sql = `
+    INSERT INTO reddit_sources (id, name, subreddit, authority, type, active, created_at)
+    VALUES (
+      ${toSqlValue(id)},
+      ${toSqlValue(input.name)},
+      ${toSqlValue(input.subreddit)},
+      ${toSqlValue(input.authority)},
+      ${toSqlValue(input.type)},
+      ${toSqlValue(input.active !== false ? 1 : 0)},
+      ${toSqlValue(now)}
+    )
+    RETURNING *
+  `;
+
+  const result = await db.query<RedditSource>(sql);
+
+  if (!result.success || !result.data || result.data.length === 0) {
+    throw new Error(`Erro ao criar fonte Reddit: ${result.error?.message}`);
+  }
+
+  return {
+    ...result.data[0],
+    active: Boolean(result.data[0].active),
+  };
+}
+
+/**
+ * Atualiza uma fonte Reddit existente
+ */
+export async function updateRedditSource(id: string, input: RedditSourceUpdate): Promise<RedditSource | null> {
+  const existing = await getRedditSource(id);
+  if (!existing) {
+    return null;
+  }
+
+  const db = getDb();
+  const updates: string[] = [];
+
+  if (input.name !== undefined) updates.push(`name = ${toSqlValue(input.name)}`);
+  if (input.subreddit !== undefined) updates.push(`subreddit = ${toSqlValue(input.subreddit)}`);
+  if (input.authority !== undefined) updates.push(`authority = ${toSqlValue(input.authority)}`);
+  if (input.type !== undefined) updates.push(`type = ${toSqlValue(input.type)}`);
+  if (input.active !== undefined) updates.push(`active = ${toSqlValue(input.active ? 1 : 0)}`);
+
+  if (updates.length === 0) {
+    return existing;
+  }
+
+  const sql = `
+    UPDATE reddit_sources 
+    SET ${updates.join(", ")}
+    WHERE id = '${escapeString(id)}'
+    RETURNING *
+  `;
+
+  const result = await db.query<RedditSource>(sql);
+
+  if (!result.success || !result.data || result.data.length === 0) {
+    return null;
+  }
+
+  return {
+    ...result.data[0],
+    active: Boolean(result.data[0].active),
+  };
+}
+
+/**
+ * Remove uma fonte Reddit
+ */
+export async function deleteRedditSource(id: string): Promise<boolean> {
+  const existing = await getRedditSource(id);
+  if (!existing) {
+    return false;
+  }
+
+  const db = getDb();
+  const result = await db.query(`DELETE FROM reddit_sources WHERE id = '${escapeString(id)}'`);
+  return result.success;
+}
+
+/**
+ * Conta fontes Reddit
+ */
+export async function countRedditSources(activeOnly = true): Promise<number> {
+  const db = getDb();
+  const whereClause = activeOnly ? "WHERE active = 1" : "";
+  const result = await db.query<{ count: number }>(
+    `SELECT COUNT(*) as count FROM reddit_sources ${whereClause}`
+  );
+
+  if (!result.success || !result.data || result.data.length === 0) {
+    return 0;
+  }
+
+  return Number(result.data[0].count);
+}
+
+// =============================================================================
+// LinkedIn Content Operations (Tabela: linkedin_content_scrape)
+// =============================================================================
+
+/**
+ * Lista conteúdo do LinkedIn com paginação
+ */
+export async function listLinkedInContent(limit = 50): Promise<LinkedInContent[]> {
+  const db = getDb();
+  const result = await db.query<LinkedInContent>(
+    `SELECT id, post_id, url, author_name, author_headline, author_profile_url, author_profile_image,
+            content, num_likes, num_comments, num_reposts, post_type, media_url, published_at, 
+            scraped_at, post_score, type, created_at, updated_at, week_date
+     FROM linkedin_content_scrape 
+     WHERE post_score > 0
+     ORDER BY scraped_at DESC, post_score DESC
+     LIMIT ${limit}`
+  );
+
+  if (!result.success || !result.data) {
+    console.error("❌ [listLinkedInContent] Erro:", result.error?.message);
+    return [];
+  }
+
+  return result.data;
+}
+
+/**
+ * Lista conteúdo do LinkedIn por tipo
+ */
+export async function listLinkedInContentByType(type: LinkedInContentType, limit = 50): Promise<LinkedInContent[]> {
+  const db = getDb();
+  const result = await db.query<LinkedInContent>(
+    `SELECT id, post_id, url, author_name, author_headline, author_profile_url, author_profile_image,
+            content, num_likes, num_comments, num_reposts, post_type, media_url, published_at, 
+            scraped_at, post_score, type, created_at, updated_at, week_date
+     FROM linkedin_content_scrape 
+     WHERE type = '${escapeString(type)}'
+     ORDER BY scraped_at DESC, post_score DESC
+     LIMIT ${limit}`
+  );
+
+  if (!result.success || !result.data) {
+    console.error("❌ [listLinkedInContentByType] Erro:", result.error?.message);
+    return [];
+  }
+
+  return result.data;
+}
+
+/**
+ * Lista conteúdo do LinkedIn por semana
+ */
+export async function listLinkedInContentByWeek(weekDate: string, limit = 50): Promise<LinkedInContent[]> {
+  const db = getDb();
+  const result = await db.query<LinkedInContent>(
+    `SELECT id, post_id, url, author_name, author_headline, author_profile_url, author_profile_image,
+            content, num_likes, num_comments, num_reposts, post_type, media_url, published_at, 
+            scraped_at, post_score, type, created_at, updated_at, week_date
+     FROM linkedin_content_scrape 
+     WHERE week_date = '${escapeString(weekDate)}'
+     ORDER BY post_score DESC
+     LIMIT ${limit}`
+  );
+
+  if (!result.success || !result.data) {
+    console.error("❌ [listLinkedInContentByWeek] Erro:", result.error?.message);
+    return [];
+  }
+
+  return result.data;
+}
+
+/**
+ * Obtém conteúdo do LinkedIn por ID
+ */
+export async function getLinkedInContent(id: number): Promise<LinkedInContent | null> {
+  const db = getDb();
+  const result = await db.query<LinkedInContent>(
+    `SELECT id, post_id, url, author_name, author_headline, author_profile_url, author_profile_image,
+            content, num_likes, num_comments, num_reposts, post_type, media_url, published_at, 
+            scraped_at, post_score, type, created_at, updated_at, week_date
+     FROM linkedin_content_scrape 
+     WHERE id = ${id}
+     LIMIT 1`
+  );
+
+  if (!result.success || !result.data || result.data.length === 0) {
+    return null;
+  }
+
+  return result.data[0];
+}
+
+/**
+ * Verifica se um post já existe pelo post_id
+ */
+export async function linkedInContentExistsByPostId(postId: string): Promise<boolean> {
+  const db = getDb();
+  const result = await db.query<{ count: number }>(
+    `SELECT COUNT(*) as count FROM linkedin_content_scrape WHERE post_id = '${escapeString(postId)}'`
+  );
+
+  if (!result.success || !result.data || result.data.length === 0) {
+    return false;
+  }
+
+  return Number(result.data[0].count) > 0;
+}
+
+/**
+ * Cria novo conteúdo do LinkedIn
+ */
+export async function createLinkedInContent(input: LinkedInContentInsert): Promise<LinkedInContent> {
+  const db = getDb();
+  const now = new Date().toISOString();
+
+  const sql = `
+    INSERT INTO linkedin_content_scrape (
+      post_id, url, author_name, author_headline, author_profile_url, author_profile_image,
+      content, num_likes, num_comments, num_reposts, post_type, media_url, published_at,
+      scraped_at, post_score, type, week_date
+    )
+    VALUES (
+      ${toSqlValue(input.post_id)},
+      ${toSqlValue(input.url)},
+      ${toSqlValue(input.author_name)},
+      ${toSqlValue(input.author_headline)},
+      ${toSqlValue(input.author_profile_url)},
+      ${toSqlValue(input.author_profile_image)},
+      ${toSqlValue(input.content)},
+      ${toSqlValue(input.num_likes)},
+      ${toSqlValue(input.num_comments)},
+      ${toSqlValue(input.num_reposts)},
+      ${toSqlValue(input.post_type)},
+      ${toSqlValue(input.media_url)},
+      ${toSqlValue(input.published_at)},
+      ${toSqlValue(now)},
+      ${toSqlValue(input.post_score)},
+      ${toSqlValue(input.type)},
+      ${toSqlValue(input.week_date)}
+    )
+    RETURNING *
+  `;
+
+  const result = await db.query<LinkedInContent>(sql);
+
+  if (!result.success || !result.data || result.data.length === 0) {
+    throw new Error(`Erro ao criar conteúdo LinkedIn: ${result.error?.message}`);
+  }
+
+  return result.data[0];
+}
+
+/**
+ * Atualiza o post_score de um conteúdo LinkedIn
+ */
+export async function updateLinkedInContentScore(id: number, postScore: number): Promise<LinkedInContent | null> {
+  const db = getDb();
+  const now = new Date().toISOString();
+
+  const sql = `
+    UPDATE linkedin_content_scrape 
+    SET post_score = ${postScore}, updated_at = ${toSqlValue(now)}
+    WHERE id = ${id}
+    RETURNING *
+  `;
+
+  const result = await db.query<LinkedInContent>(sql);
+
+  if (!result.success || !result.data || result.data.length === 0) {
+    return null;
+  }
+
+  return result.data[0];
+}
+
+/**
+ * Conta total de conteúdo LinkedIn
+ */
+export async function countLinkedInContent(): Promise<number> {
+  const db = getDb();
+  const result = await db.query<{ count: number }>(
+    `SELECT COUNT(*) as count FROM linkedin_content_scrape`
+  );
+
+  if (!result.success || !result.data || result.data.length === 0) {
+    return 0;
+  }
+
+  return Number(result.data[0].count);
+}
+
+/**
+ * Conta conteúdo com score > 0 (relevante)
+ */
+export async function countLinkedInRelevantContent(): Promise<number> {
+  const db = getDb();
+  const result = await db.query<{ count: number }>(
+    `SELECT COUNT(*) as count FROM linkedin_content_scrape WHERE post_score > 0`
+  );
+
+  if (!result.success || !result.data || result.data.length === 0) {
+    return 0;
+  }
+
+  return Number(result.data[0].count);
+}
+
+/**
+ * Conta conteúdo por tipo
+ */
+export async function countLinkedInContentByType(type: LinkedInContentType): Promise<number> {
+  const db = getDb();
+  const result = await db.query<{ count: number }>(
+    `SELECT COUNT(*) as count FROM linkedin_content_scrape WHERE type = '${escapeString(type)}'`
+  );
+
+  if (!result.success || !result.data || result.data.length === 0) {
+    return 0;
+  }
+
+  return Number(result.data[0].count);
+}
+
+// =============================================================================
+// Reddit Content Operations (Tabela: reddit_content_scrape)
+// =============================================================================
+
+/**
+ * Lista conteúdo do Reddit com paginação
+ */
+export async function listRedditContent(limit = 50): Promise<RedditContent[]> {
+  const db = getDb();
+  const result = await db.query<RedditContent>(
+    `SELECT id, title, author, subreddit, selftext, url, permalink,
+            score, num_comments, created_at, scraped_at, updated_at,
+            type, authority, post_score, week_date
+     FROM reddit_content_scrape 
+     WHERE post_score > 0
+     ORDER BY scraped_at DESC, post_score DESC
+     LIMIT ${limit}`
+  );
+
+  if (!result.success || !result.data) {
+    console.error("❌ [listRedditContent] Erro:", result.error?.message);
+    return [];
+  }
+
+  return result.data;
+}
+
+/**
+ * Lista conteúdo do Reddit por subreddit
+ */
+export async function listRedditContentBySubreddit(subreddit: string, limit = 50): Promise<RedditContent[]> {
+  const db = getDb();
+  const result = await db.query<RedditContent>(
+    `SELECT id, title, author, subreddit, selftext, url, permalink,
+            score, num_comments, created_at, scraped_at, updated_at,
+            type, authority, post_score, week_date
+     FROM reddit_content_scrape 
+     WHERE subreddit = '${escapeString(subreddit)}'
+     ORDER BY scraped_at DESC, post_score DESC
+     LIMIT ${limit}`
+  );
+
+  if (!result.success || !result.data) {
+    console.error("❌ [listRedditContentBySubreddit] Erro:", result.error?.message);
+    return [];
+  }
+
+  return result.data;
+}
+
+/**
+ * Lista conteúdo do Reddit por tipo
+ */
+export async function listRedditContentByType(type: RedditContentType, limit = 50): Promise<RedditContent[]> {
+  const db = getDb();
+  const result = await db.query<RedditContent>(
+    `SELECT id, title, author, subreddit, selftext, url, permalink,
+            score, num_comments, created_at, scraped_at, updated_at,
+            type, authority, post_score, week_date
+     FROM reddit_content_scrape 
+     WHERE type = '${escapeString(type)}'
+     ORDER BY scraped_at DESC, post_score DESC
+     LIMIT ${limit}`
+  );
+
+  if (!result.success || !result.data) {
+    console.error("❌ [listRedditContentByType] Erro:", result.error?.message);
+    return [];
+  }
+
+  return result.data;
+}
+
+/**
+ * Lista conteúdo do Reddit por semana
+ */
+export async function listRedditContentByWeek(weekDate: string, limit = 50): Promise<RedditContent[]> {
+  const db = getDb();
+  const result = await db.query<RedditContent>(
+    `SELECT id, title, author, subreddit, selftext, url, permalink,
+            score, num_comments, created_at, scraped_at, updated_at,
+            type, authority, post_score, week_date
+     FROM reddit_content_scrape 
+     WHERE week_date = '${escapeString(weekDate)}'
+     ORDER BY post_score DESC
+     LIMIT ${limit}`
+  );
+
+  if (!result.success || !result.data) {
+    console.error("❌ [listRedditContentByWeek] Erro:", result.error?.message);
+    return [];
+  }
+
+  return result.data;
+}
+
+/**
+ * Obtém conteúdo do Reddit por ID
+ */
+export async function getRedditContent(id: number): Promise<RedditContent | null> {
+  const db = getDb();
+  const result = await db.query<RedditContent>(
+    `SELECT id, title, author, subreddit, selftext, url, permalink,
+            score, num_comments, created_at, scraped_at, updated_at,
+            type, authority, post_score, week_date
+     FROM reddit_content_scrape 
+     WHERE id = ${id}
+     LIMIT 1`
+  );
+
+  if (!result.success || !result.data || result.data.length === 0) {
+    return null;
+  }
+
+  return result.data[0];
+}
+
+/**
+ * Verifica se um post já existe pelo permalink
+ */
+export async function redditContentExistsByPermalink(permalink: string): Promise<boolean> {
+  const db = getDb();
+  const result = await db.query<{ count: number }>(
+    `SELECT COUNT(*) as count FROM reddit_content_scrape WHERE permalink = '${escapeString(permalink)}'`
+  );
+
+  if (!result.success || !result.data || result.data.length === 0) {
+    return false;
+  }
+
+  return Number(result.data[0].count) > 0;
+}
+
+/**
+ * Cria novo conteúdo do Reddit
+ */
+export async function createRedditContent(input: RedditContentInsert): Promise<RedditContent> {
+  const db = getDb();
+
+  const sql = `
+    INSERT INTO reddit_content_scrape (
+      title, author, subreddit, selftext, url, permalink,
+      score, num_comments, created_at, type, authority, post_score, week_date
+    )
+    VALUES (
+      ${toSqlValue(input.title)},
+      ${toSqlValue(input.author)},
+      ${toSqlValue(input.subreddit)},
+      ${toSqlValue(input.selftext)},
+      ${toSqlValue(input.url)},
+      ${toSqlValue(input.permalink)},
+      ${toSqlValue(input.score)},
+      ${toSqlValue(input.num_comments)},
+      ${toSqlValue(input.created_at)},
+      ${toSqlValue(input.type)},
+      ${toSqlValue(input.authority)},
+      ${toSqlValue(input.post_score)},
+      ${toSqlValue(input.week_date)}
+    )
+    RETURNING *
+  `;
+
+  const result = await db.query<RedditContent>(sql);
+
+  if (!result.success || !result.data || result.data.length === 0) {
+    throw new Error(`Erro ao criar conteúdo Reddit: ${result.error?.message}`);
+  }
+
+  return result.data[0];
+}
+
+/**
+ * Atualiza o post_score de um conteúdo Reddit
+ */
+export async function updateRedditContentScore(id: number, postScore: number): Promise<RedditContent | null> {
+  const db = getDb();
+  const now = new Date().toISOString();
+
+  const sql = `
+    UPDATE reddit_content_scrape 
+    SET post_score = ${postScore}, updated_at = ${toSqlValue(now)}
+    WHERE id = ${id}
+    RETURNING *
+  `;
+
+  const result = await db.query<RedditContent>(sql);
+
+  if (!result.success || !result.data || result.data.length === 0) {
+    return null;
+  }
+
+  return result.data[0];
+}
+
+/**
+ * Conta total de conteúdo Reddit
+ */
+export async function countRedditContent(): Promise<number> {
+  const db = getDb();
+  const result = await db.query<{ count: number }>(
+    `SELECT COUNT(*) as count FROM reddit_content_scrape`
+  );
+
+  if (!result.success || !result.data || result.data.length === 0) {
+    return 0;
+  }
+
+  return Number(result.data[0].count);
+}
+
+/**
+ * Conta conteúdo com score > 0 (relevante)
+ */
+export async function countRedditRelevantContent(): Promise<number> {
+  const db = getDb();
+  const result = await db.query<{ count: number }>(
+    `SELECT COUNT(*) as count FROM reddit_content_scrape WHERE post_score > 0`
+  );
+
+  if (!result.success || !result.data || result.data.length === 0) {
+    return 0;
+  }
+
+  return Number(result.data[0].count);
+}
+
+/**
+ * Conta conteúdo por subreddit
+ */
+export async function countRedditContentBySubreddit(subreddit: string): Promise<number> {
+  const db = getDb();
+  const result = await db.query<{ count: number }>(
+    `SELECT COUNT(*) as count FROM reddit_content_scrape WHERE subreddit = '${escapeString(subreddit)}'`
+  );
+
+  if (!result.success || !result.data || result.data.length === 0) {
+    return 0;
+  }
+
+  return Number(result.data[0].count);
+}
+
+/**
+ * Conta conteúdo por tipo
+ */
+export async function countRedditContentByType(type: RedditContentType): Promise<number> {
+  const db = getDb();
+  const result = await db.query<{ count: number }>(
+    `SELECT COUNT(*) as count FROM reddit_content_scrape WHERE type = '${escapeString(type)}'`
+  );
+
+  if (!result.success || !result.data || result.data.length === 0) {
+    return 0;
+  }
+
+  return Number(result.data[0].count);
 }

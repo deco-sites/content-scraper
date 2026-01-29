@@ -7,6 +7,10 @@ import * as $api_articles from "./routes/api/articles.ts";
 import * as $api_blogs_id_ from "./routes/api/blogs/[id].ts";
 import * as $api_blogs_id_articles from "./routes/api/blogs/[id]/articles.ts";
 import * as $api_blogs_index from "./routes/api/blogs/index.ts";
+import * as $api_linkedin_posts from "./routes/api/linkedin/posts.ts";
+import * as $api_linkedin_scrape from "./routes/api/linkedin/scrape.ts";
+import * as $api_reddit_posts from "./routes/api/reddit/posts.ts";
+import * as $api_reddit_scrape from "./routes/api/reddit/scrape.ts";
 import * as $api_scrape from "./routes/api/scrape.ts";
 import * as $api_stats from "./routes/api/stats.ts";
 import * as $api_types from "./routes/api/types.ts";
@@ -22,6 +26,10 @@ const manifest = {
     "./routes/api/blogs/[id].ts": $api_blogs_id_,
     "./routes/api/blogs/[id]/articles.ts": $api_blogs_id_articles,
     "./routes/api/blogs/index.ts": $api_blogs_index,
+    "./routes/api/linkedin/posts.ts": $api_linkedin_posts,
+    "./routes/api/linkedin/scrape.ts": $api_linkedin_scrape,
+    "./routes/api/reddit/posts.ts": $api_reddit_posts,
+    "./routes/api/reddit/scrape.ts": $api_reddit_scrape,
     "./routes/api/scrape.ts": $api_scrape,
     "./routes/api/stats.ts": $api_stats,
     "./routes/api/types.ts": $api_types,
