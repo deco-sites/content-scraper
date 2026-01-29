@@ -3,14 +3,34 @@
 // This file is automatically updated during development when running `dev.ts`.
 
 import * as $_app from "./routes/_app.tsx";
-
+import * as $api_articles from "./routes/api/articles.ts";
+import * as $api_blogs_id_ from "./routes/api/blogs/[id].ts";
+import * as $api_blogs_id_articles from "./routes/api/blogs/[id]/articles.ts";
+import * as $api_blogs_index from "./routes/api/blogs/index.ts";
+import * as $api_scrape from "./routes/api/scrape.ts";
+import * as $api_stats from "./routes/api/stats.ts";
+import * as $api_types from "./routes/api/types.ts";
+import * as $index from "./routes/index.tsx";
+import * as $report from "./routes/report.tsx";
+import * as $BlogManager from "./islands/BlogManager.tsx";
 import type { Manifest } from "$fresh/server.ts";
 
 const manifest = {
   routes: {
     "./routes/_app.tsx": $_app,
+    "./routes/api/articles.ts": $api_articles,
+    "./routes/api/blogs/[id].ts": $api_blogs_id_,
+    "./routes/api/blogs/[id]/articles.ts": $api_blogs_id_articles,
+    "./routes/api/blogs/index.ts": $api_blogs_index,
+    "./routes/api/scrape.ts": $api_scrape,
+    "./routes/api/stats.ts": $api_stats,
+    "./routes/api/types.ts": $api_types,
+    "./routes/index.tsx": $index,
+    "./routes/report.tsx": $report,
   },
-  islands: {},
+  islands: {
+    "./islands/BlogManager.tsx": $BlogManager,
+  },
   baseUrl: import.meta.url,
 } satisfies Manifest;
 

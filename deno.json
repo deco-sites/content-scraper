@@ -57,7 +57,13 @@
     "build": "deno run -A dev.ts build",
     "preview": "deno run -A main.ts",
     "dev": "deno run -A --env --unstable-kv --unstable-hmr dev.ts",
-    "reload": "deno cache -r https://deco.cx/run"
+    "reload": "deno cache -r https://deco.cx/run",
+    "scraper": "deno run -A --unstable-kv --env cli.ts",
+    "scraper:seed": "deno run -A --unstable-kv --env cli.ts seed",
+    "scraper:dev": "deno run -A --unstable-kv --env cli.ts dev",
+    "scraper:report": "deno run -A --unstable-kv --env cli.ts report",
+    "scraper:cron": "deno run -A --unstable-kv --env cli.ts cron",
+    "scraper:list": "deno run -A --unstable-kv --env cli.ts list"
   },
   "githooks": {
     "pre-commit": "check"
