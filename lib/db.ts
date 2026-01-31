@@ -1213,6 +1213,22 @@ export async function linkedInContentExistsByPostId(postId: string): Promise<boo
 }
 
 /**
+ * Verifica se já existe conteúdo LinkedIn com o mesmo hash (detecta cross-posting)
+ */
+export async function linkedInContentExistsByHash(contentHash: string): Promise<boolean> {
+  const db = getDb();
+  const result = await db.query<{ count: number }>(
+    `SELECT COUNT(*) as count FROM linkedin_content_scrape WHERE content_hash = '${escapeString(contentHash)}'`
+  );
+
+  if (!result.success || !result.data || result.data.length === 0) {
+    return false;
+  }
+
+  return Number(result.data[0].count) > 0;
+}
+
+/**
  * Cria novo conteúdo do LinkedIn
  */
 export async function createLinkedInContent(input: LinkedInContentInsert): Promise<LinkedInContent> {
@@ -1223,7 +1239,7 @@ export async function createLinkedInContent(input: LinkedInContentInsert): Promi
     INSERT INTO linkedin_content_scrape (
       post_id, url, author_name, author_headline, author_profile_url, author_profile_image,
       content, num_likes, num_comments, num_reposts, post_type, media_url, published_at,
-      scraped_at, post_score, type, week_date
+      scraped_at, post_score, type, week_date, content_hash
     )
     VALUES (
       ${toSqlValue(input.post_id)},
@@ -1242,7 +1258,8 @@ export async function createLinkedInContent(input: LinkedInContentInsert): Promi
       ${toSqlValue(now)},
       ${toSqlValue(input.post_score)},
       ${toSqlValue(input.type)},
-      ${toSqlValue(input.week_date)}
+      ${toSqlValue(input.week_date)},
+      ${toSqlValue(input.content_hash ?? null)}
     )
     RETURNING *
   `;
@@ -1461,6 +1478,22 @@ export async function redditContentExistsByPermalink(permalink: string): Promise
 }
 
 /**
+ * Verifica se já existe conteúdo Reddit com o mesmo hash (detecta cross-posting)
+ */
+export async function redditContentExistsByHash(contentHash: string): Promise<boolean> {
+  const db = getDb();
+  const result = await db.query<{ count: number }>(
+    `SELECT COUNT(*) as count FROM reddit_content_scrape WHERE content_hash = '${escapeString(contentHash)}'`
+  );
+
+  if (!result.success || !result.data || result.data.length === 0) {
+    return false;
+  }
+
+  return Number(result.data[0].count) > 0;
+}
+
+/**
  * Cria novo conteúdo do Reddit
  */
 export async function createRedditContent(input: RedditContentInsert): Promise<RedditContent> {
@@ -1469,7 +1502,7 @@ export async function createRedditContent(input: RedditContentInsert): Promise<R
   const sql = `
     INSERT INTO reddit_content_scrape (
       title, author, subreddit, selftext, url, permalink,
-      score, num_comments, created_at, type, authority, post_score, week_date
+      score, num_comments, created_at, type, authority, post_score, week_date, content_hash
     )
     VALUES (
       ${toSqlValue(input.title)},
@@ -1484,7 +1517,8 @@ export async function createRedditContent(input: RedditContentInsert): Promise<R
       ${toSqlValue(input.type)},
       ${toSqlValue(input.authority)},
       ${toSqlValue(input.post_score)},
-      ${toSqlValue(input.week_date)}
+      ${toSqlValue(input.week_date)},
+      ${toSqlValue(input.content_hash ?? null)}
     )
     RETURNING *
   `;

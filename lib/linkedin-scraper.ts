@@ -9,11 +9,12 @@ import type {
 } from "./types.ts";
 import {
   linkedInContentExistsByPostId,
+  linkedInContentExistsByHash,
   createLinkedInContent,
   listLinkedInSources,
 } from "./db.ts";
 import { analyzeLinkedInPost } from "./llm.ts";
-import { getPublicationWeek, sleep } from "./utils.ts";
+import { getPublicationWeek, sleep, generateContentHash } from "./utils.ts";
 
 // Apify API configuration
 const APIFY_API_URL = "https://api.apify.com/v2";
@@ -148,9 +149,9 @@ async function processLinkedInPost(
   rawPost: LinkedInRawPost,
   authorAuthority: number
 ): Promise<{ saved: boolean; relevant: boolean; score: number }> {
-  // Verifica se já existe
-  const exists = await linkedInContentExistsByPostId(rawPost.id);
-  if (exists) {
+  // Verifica se já existe pelo post_id
+  const existsById = await linkedInContentExistsByPostId(rawPost.id);
+  if (existsById) {
     console.log(`    → Skipping (already exists): ${rawPost.id}`);
     return { saved: false, relevant: false, score: 0 };
   }
@@ -158,6 +159,16 @@ async function processLinkedInPost(
   // Valida conteúdo mínimo
   if (!rawPost.content || rawPost.content.length < 50) {
     console.log(`    → Skipping (content too short): ${rawPost.id}`);
+    return { saved: false, relevant: false, score: 0 };
+  }
+
+  // Gera hash do conteúdo para detectar cross-posting
+  const contentHash = await generateContentHash(rawPost.content);
+
+  // Verifica se já existe conteúdo igual de outra fonte
+  const existsByHash = await linkedInContentExistsByHash(contentHash);
+  if (existsByHash) {
+    console.log(`    → Skipping (duplicate content detected): ${rawPost.content.slice(0, 40)}...`);
     return { saved: false, relevant: false, score: 0 };
   }
 
@@ -210,6 +221,7 @@ async function processLinkedInPost(
     post_score: postScore,
     type: "community",
     week_date: weekDate,
+    content_hash: contentHash,
   };
 
   // Salva no banco

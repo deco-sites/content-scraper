@@ -246,6 +246,7 @@ export interface LinkedInContentInsert {
   post_score: number;
   type: LinkedInContentType;
   week_date: string | null;
+  content_hash?: string; // Hash para detecção de duplicatas cross-posting
 }
 
 /**
@@ -403,6 +404,7 @@ export interface RedditContentInsert {
   authority: number;
   post_score: number;
   week_date: string | null;
+  content_hash?: string; // Hash para detecção de duplicatas cross-posting
 }
 
 /**

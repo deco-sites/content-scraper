@@ -166,6 +166,32 @@ export function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Normaliza texto para comparação de duplicatas
+ * Remove espaços extras, converte para lowercase, remove caracteres especiais
+ */
+export function normalizeTextForHash(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/\s+/g, " ") // normaliza espaços
+    .replace(/[^\w\s]/g, "") // remove pontuação e emojis
+    .trim()
+    .slice(0, 1000); // usa primeiros 1000 chars para evitar hashes diferentes por truncamento
+}
+
+/**
+ * Gera hash SHA-256 de conteúdo para detecção de duplicatas
+ * Usado para evitar salvar o mesmo conteúdo postado em múltiplos lugares
+ */
+export async function generateContentHash(text: string): Promise<string> {
+  const normalized = normalizeTextForHash(text);
+  const encoder = new TextEncoder();
+  const data = encoder.encode(normalized);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
  * Fetch com retry e backoff exponencial
  */
 export async function fetchWithRetry(

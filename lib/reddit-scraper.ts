@@ -11,10 +11,11 @@ import type {
 import {
   createRedditContent,
   redditContentExistsByPermalink,
+  redditContentExistsByHash,
   listRedditSources,
 } from "./db.ts";
 import { analyzeRedditPost } from "./llm.ts";
-import { sleep } from "./utils.ts";
+import { sleep, generateContentHash } from "./utils.ts";
 
 // Rate limiting
 const DELAY_BETWEEN_POSTS = 300; // 300ms entre posts (análise LLM)
@@ -134,16 +135,27 @@ export async function processRedditPosts(
 
   for (const post of posts) {
     try {
-      // Verifica se já existe
-      const exists = await redditContentExistsByPermalink(post.permalink);
-      if (exists) {
+      // Verifica se já existe pelo permalink
+      const existsByPermalink = await redditContentExistsByPermalink(post.permalink);
+      if (existsByPermalink) {
         console.log(`    → Skipping (already exists): ${post.title.slice(0, 40)}...`);
         postsSkipped++;
         continue;
       }
 
-      // Analisa com LLM
+      // Gera hash do conteúdo para detectar cross-posting
       const content = post.selftext || post.title;
+      const contentHash = await generateContentHash(post.title + " " + content);
+
+      // Verifica se já existe conteúdo igual em outro subreddit
+      const existsByHash = await redditContentExistsByHash(contentHash);
+      if (existsByHash) {
+        console.log(`    → Skipping (cross-post detected): ${post.title.slice(0, 40)}...`);
+        postsSkipped++;
+        continue;
+      }
+
+      // Analisa com LLM
       const analysis = await analyzeRedditPost(
         post.title,
         content,
@@ -178,6 +190,7 @@ export async function processRedditPosts(
         authority: authority,
         post_score: postScore,
         week_date: getWeekDate(post.created_utc),
+        content_hash: contentHash,
       };
 
       // Salva no banco
