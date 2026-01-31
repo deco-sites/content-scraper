@@ -23,8 +23,8 @@ const LINKEDIN_ACTOR_ID = "harvestapi~linkedin-profile-posts";
 // Rate limiting
 const DELAY_BETWEEN_POSTS = 300; // 300ms entre posts (análise LLM)
 
-// Minimum post score to be considered relevant (0-100)
-const MIN_RELEVANT_SCORE = 50;
+// Minimum post score to be considered relevant (0.0 a 1.0)
+const MIN_RELEVANT_SCORE = 0.5;
 
 /**
  * Obtém a chave da API Apify
@@ -180,10 +180,10 @@ async function processLinkedInPost(
     rawPost.engagement
   );
 
-  // Calcula post_score (0-100 para a tabela)
-  // Formula: 70% quality_score + 30% authority, convertido para 0-100
+  // Calcula post_score (0.0 a 1.0, igual blogs e Reddit)
+  // Formula: 70% quality_score + 30% authority
   const postScore = analysis.is_relevant
-    ? Math.round((analysis.quality_score * 0.7 + authorAuthority * 0.3) * 100)
+    ? Math.round((analysis.quality_score * 0.7 + authorAuthority * 0.3) * 100) / 100
     : 0;
 
   // Determina se é repost
@@ -230,9 +230,9 @@ async function processLinkedInPost(
   const isRelevant = postScore >= MIN_RELEVANT_SCORE;
 
   if (isRelevant) {
-    console.log(`    ✓ Saved (relevant, score: ${postScore}): ${rawPost.content.slice(0, 50)}...`);
+    console.log(`    ✓ Saved (relevant, score: ${(postScore * 100).toFixed(0)}%): ${rawPost.content.slice(0, 50)}...`);
   } else {
-    console.log(`    ○ Saved (score: ${postScore}): ${rawPost.content.slice(0, 50)}...`);
+    console.log(`    ○ Saved (score: ${(postScore * 100).toFixed(0)}%): ${rawPost.content.slice(0, 50)}...`);
   }
 
   return { saved: true, relevant: isRelevant, score: postScore };
