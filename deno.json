@@ -63,7 +63,9 @@
     "scraper:dev": "deno run -A --unstable-kv --env cli.ts dev",
     "scraper:report": "deno run -A --unstable-kv --env cli.ts report",
     "scraper:cron": "deno run -A --unstable-kv --env cli.ts cron",
-    "scraper:list": "deno run -A --unstable-kv --env cli.ts list"
+    "scraper:list": "deno run -A --unstable-kv --env cli.ts list",
+    "mcp": "deno run -A --unstable-kv --env mcp/stdio.ts",
+    "mcp:http": "deno run -A --unstable-kv --env mcp/http.ts"
   },
   "githooks": {
     "pre-commit": "check"

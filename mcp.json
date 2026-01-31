@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "content-scraper-stdio": {
+      "command": "deno",
+      "args": ["run", "-A", "--unstable-kv", "--env", "mcp/stdio.ts"],
+      "cwd": ".",
+      "env": {
+        "OPENROUTER_API_KEY": "${OPENROUTER_API_KEY}",
+        "APIFY_API_TOKEN": "${APIFY_API_TOKEN}",
+        "ADMIN_DB_TOKEN": "${ADMIN_DB_TOKEN}"
+      }
+    },
+    "content-scraper-http": {
+      "type": "sse",
+      "url": "https://YOUR-DEPLOY-URL/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_API_KEY"
+      }
+    }
+  }
+}
+
