@@ -11,11 +11,8 @@
       }
     },
     "content-scraper-http": {
-      "type": "sse",
-      "url": "https://YOUR-DEPLOY-URL/mcp",
-      "headers": {
-        "Authorization": "Bearer YOUR_API_KEY"
-      }
+      "type": "http",
+      "url": "https://sites-content-scraper--vdqi85.decocdn.com/mcp"
     }
   }
 }
