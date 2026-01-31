@@ -17,7 +17,7 @@ import { getPublicationWeek, sleep } from "./utils.ts";
 
 // Apify API configuration
 const APIFY_API_URL = "https://api.apify.com/v2";
-const LINKEDIN_ACTOR_ID = "harvestapi/linkedin-profile-posts";
+const LINKEDIN_ACTOR_ID = "harvestapi~linkedin-profile-posts";
 
 // Rate limiting
 const DELAY_BETWEEN_POSTS = 300; // 300ms entre posts (análise LLM)
