@@ -14,6 +14,23 @@ const MODEL = "anthropic/claude-sonnet-4";
 const TEMPERATURE = 0.3;
 const MAX_TOKENS = 4000;
 
+async function loadPrompt(path: string): Promise<string> {
+  return await Deno.readTextFile(new URL(path, import.meta.url));
+}
+
+/**
+ * Renderiza templates simples no formato {{var}}
+ */
+function renderPromptTemplate(
+  template: string,
+  vars: Record<string, string | number>,
+): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (_match, key: string) => {
+    const value = vars[key];
+    return value === undefined ? `{{${key}}}` : String(value);
+  });
+}
+
 /**
  * Obtém a chave da API OpenRouter
  */
@@ -93,52 +110,23 @@ function parseJsonResponse<T>(content: string): T {
 // Prompts
 // =============================================================================
 
-const ARTICLE_LIST_SYSTEM_PROMPT = `You are an expert at extracting blog article information from web page content.
-Given the page content, extract all visible blog articles/posts.
+const ARTICLE_LIST_SYSTEM_PROMPT = await loadPrompt(
+  "./prompts/article_list_system.md",
+);
+const ARTICLE_ANALYSIS_SYSTEM_PROMPT_TEMPLATE = await loadPrompt(
+  "./prompts/article_analysis_system.md",
+);
+const LINKEDIN_POST_ANALYSIS_SYSTEM_PROMPT_TEMPLATE = await loadPrompt(
+  "./prompts/linkedin_post_analysis_system.md",
+);
+const REDDIT_POST_ANALYSIS_SYSTEM_PROMPT_TEMPLATE = await loadPrompt(
+  "./prompts/reddit_post_analysis_system.md",
+);
 
-IMPORTANT: The page content contains links in markdown format: [link text](url)
-You MUST use the EXACT URLs from these links. Do NOT guess or invent URLs.
-
-For each article, provide:
-- title: The article title
-- url: The EXACT full URL from the link (do not modify or guess URLs)
-- published_at: The publication date if visible (in YYYY-MM-DD format, or null if not found)
-
-Respond ONLY with valid JSON in this exact format:
-{
-  "articles": [
-    { "title": "string", "url": "string", "published_at": "string or null" }
-  ]
-}
-
-Only include actual blog posts/articles, not navigation links, author pages, or category pages.
-Limit to the 10 most recent articles visible on the page.
-CRITICAL: Use the exact URLs from the markdown links in the content. Never invent URLs.`;
-
-const ARTICLE_ANALYSIS_SYSTEM_PROMPT = (authority: number) => `You are an expert at analyzing blog articles about technology.
-Your task is to:
-1. Determine if the article is related to MCP (Model Context Protocol) - this includes articles about AI agents, LLM tools, AI integrations, Claude, Anthropic, or similar AI/ML infrastructure topics.
-2. Generate a concise summary (2-3 sentences)
-3. Extract 3-5 key points from the article
-4. Calculate a quality_score from 0.0 to 1.0 based on:
-   - How well-written and informative the article is
-   - Technical depth and accuracy
-   - Practical value and actionable insights
-   - Relevance to MCP/AI topics
-
-The source has an authority rating of ${authority.toFixed(2)} (0.0 = low trust, 1.0 = high trust).
-Factor this into your quality assessment - higher authority sources should be weighted more favorably.
-
-Respond ONLY with valid JSON in this exact format:
-{
-  "is_mcp_related": boolean,
-  "summary": "string",
-  "key_points": ["point1", "point2", "point3"],
-  "quality_score": number
-}
-
-quality_score should be between 0.0 and 1.0.
-If you cannot determine if the article is MCP-related or if there's insufficient content, set is_mcp_related to false.`;
+const ARTICLE_ANALYSIS_SYSTEM_PROMPT = (authority: number) =>
+  renderPromptTemplate(ARTICLE_ANALYSIS_SYSTEM_PROMPT_TEMPLATE, {
+    authority: authority.toFixed(2),
+  });
 
 // =============================================================================
 // Public API
@@ -218,42 +206,10 @@ export async function analyzeArticle(
 // LinkedIn Post Analysis
 // =============================================================================
 
-const LINKEDIN_POST_ANALYSIS_SYSTEM_PROMPT = (authority: number) => `You are an expert at analyzing LinkedIn posts about technology.
-Your task is to:
-1. Determine if the post is relevant and valuable - this includes posts about:
-   - MCP (Model Context Protocol), AI agents, LLM tools, AI integrations
-   - Software engineering best practices, architecture, system design
-   - Developer tools, productivity, career insights
-   - Tech industry news, trends, and analysis
-   - Startup/product insights from tech leaders
-
-2. Generate a concise summary (1-2 sentences)
-3. Extract 2-4 key points from the post
-4. Calculate a quality_score from 0.0 to 1.0 based on:
-   - How insightful and valuable the content is
-   - Technical depth or unique perspective
-   - Practical value and actionable insights
-   - Engagement potential (is it thought-provoking?)
-
-5. Provide a brief reason why the post is or isn't relevant
-
-The author has an authority rating of ${authority.toFixed(2)} (0.0 = low trust, 1.0 = high trust).
-Factor this into your quality assessment - higher authority authors should be weighted more favorably.
-
-IMPORTANT: Be selective. Only mark posts as relevant if they provide genuine value.
-Generic motivational posts, simple announcements without substance, or low-effort content should NOT be marked as relevant.
-
-Respond ONLY with valid JSON in this exact format:
-{
-  "is_relevant": boolean,
-  "summary": "string",
-  "key_points": ["point1", "point2"],
-  "quality_score": number,
-  "relevance_reason": "string"
-}
-
-quality_score should be between 0.0 and 1.0.
-If the post is too short or lacks substance, set is_relevant to false.`;
+const LINKEDIN_POST_ANALYSIS_SYSTEM_PROMPT = (authority: number) =>
+  renderPromptTemplate(LINKEDIN_POST_ANALYSIS_SYSTEM_PROMPT_TEMPLATE, {
+    authority: authority.toFixed(2),
+  });
 
 /**
  * Analisa um post do LinkedIn para determinar relevância e qualidade
@@ -307,48 +263,16 @@ ${content.slice(0, 5000)}`; // Limita a 5k chars (posts são menores que artigos
 // Reddit Post Analysis
 // =============================================================================
 
-const REDDIT_POST_ANALYSIS_SYSTEM_PROMPT = (subreddit: string, upvotes: number, comments: number) => `You are an expert at analyzing Reddit posts about AI and technology.
-You are analyzing a post from r/${subreddit}.
-
-Your task is to:
-1. Determine if the post is relevant and valuable - this includes posts about:
-   - MCP (Model Context Protocol), AI agents, LLM tools, AI integrations
-   - Software engineering best practices, architecture, system design
-   - Developer tools, productivity, AI-assisted coding
-   - RAG systems, embeddings, vector databases
-   - Agent frameworks (LangChain, LangGraph, CrewAI, AutoGen, etc)
-   - AI/ML infrastructure, deployment, and production challenges
-   - Open source AI tools and libraries
-
-2. Generate a concise summary (2-3 sentences)
-3. Extract 2-4 key points from the post
-4. Calculate a quality_score from 0.0 to 1.0 based on:
-   - How insightful and valuable the content is
-   - Technical depth or unique perspective
-   - Practical value and actionable insights
-   - Community engagement (this post has ${upvotes} upvotes and ${comments} comments)
-   - Whether it provides real solutions or just asks questions
-
-5. Provide a brief reason why the post is or isn't relevant
-
-IMPORTANT: Be selective. Only mark posts as relevant if they provide genuine value.
-- Simple questions without substance should NOT be marked as relevant
-- Self-promotion without real content should NOT be marked as relevant
-- Posts with actual code, architecture, or detailed explanations ARE valuable
-- Posts discussing production challenges and solutions ARE valuable
-- Posts introducing useful open source tools ARE valuable
-
-Respond ONLY with valid JSON in this exact format:
-{
-  "is_relevant": boolean,
-  "summary": "string",
-  "key_points": ["point1", "point2"],
-  "quality_score": number,
-  "relevance_reason": "string"
-}
-
-quality_score should be between 0.0 and 1.0.
-If the post is too short or lacks substance, set is_relevant to false.`;
+const REDDIT_POST_ANALYSIS_SYSTEM_PROMPT = (
+  subreddit: string,
+  upvotes: number,
+  comments: number,
+) =>
+  renderPromptTemplate(REDDIT_POST_ANALYSIS_SYSTEM_PROMPT_TEMPLATE, {
+    subreddit,
+    upvotes,
+    comments,
+  });
 
 /**
  * Analisa um post do Reddit para determinar relevância e qualidade

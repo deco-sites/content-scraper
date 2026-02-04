@@ -24,7 +24,7 @@ const LINKEDIN_ACTOR_ID = "harvestapi~linkedin-profile-posts";
 const DELAY_BETWEEN_POSTS = 300; // 300ms entre posts (análise LLM)
 
 // Minimum post score to be considered relevant (0.0 a 1.0)
-const MIN_RELEVANT_SCORE = 0.5;
+const MIN_RELEVANT_SCORE = 0.2;
 
 /**
  * Obtém a chave da API Apify
